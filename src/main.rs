@@ -1,8 +1,33 @@
 use clap::Parser;
 use std::process::Command;
 use chrono::Local;
+use std::fs;
+use std::path::Path;
+use std::fmt;
 
-/// A simple program with an update flag
+// Error Handler
+#[derive(Debug)]
+struct UpdateError {
+    timestamp: String,
+    details: String,
+}
+
+impl UpdateError {
+    fn new(details: impl Into<String>) -> Self {
+        Self {
+            timestamp: Local::now().format("%m-%d-%Y-%H:%M:%S").to_string(),
+            details: details.into(),
+        }
+    }
+}
+
+impl fmt::Display for UpdateError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{}] {}", self.timestamp, self.details)
+    }
+}
+
+// A simple updater/installer with an update or install flag
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -16,18 +41,49 @@ const DISCORD_TARBALL: &str = &"https://discord.com/api/download?platform=linux&
 
 
 fn main() {
+    // first we handle CLI arguments
     let args = Args::parse();
-    if args.update {
-        perform_update();
-    } else {
-        println!("No update flag provided. Run with --update to perform update.");
+    if !args.update {
+        eprintln!("No update flag provided. Run with --update to perform update.");
+        return;
     }
+
+    match check_files_first() {
+        Ok(()) => {
+            println!("Performing update...");
+            perform_update();
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+}
+
+fn check_file(path: &Path) -> Result<(), UpdateError> {
+    if fs::metadata(path).is_err() {
+        Err(UpdateError::new(format!("Missing file or dir: {}", path.display())))
+    } else {
+        println!("OK: {}", path.display());
+        Ok(())
+    }
+}
+
+
+fn check_files_first() -> Result<(), UpdateError> {
+    let check_opt: &Path = Path::new("/opt"); 
+    let check_usr: &Path = Path::new("/usr/local"); 
+    check_file(check_opt)?;
+    check_file(check_usr)?;
+
+    Ok(())
 }
 
 fn install_discord() {
     // Remove existing /opt/Discord (with sudo)
     // NOTE: this assumes the os already has a /opt dir 
-    // TODO: check if exists and skip if not instead of assume fail here.
+
     let status = Command::new("sudo")
         .args(&["rm", "-rf", "/opt/Discord"])
         .status()
@@ -42,15 +98,13 @@ fn install_discord() {
         .status()
         .expect("Failed to move Discord to /opt/");
     assert!(status.success());
-
-
 }
 
 fn post_install() {
     // Create/overwrite symlink
     // this lets us 'source' local config to new discord binary
     // Explaination:
-    //  - if you signed in before, you likley wont need to login again
+    //    if you signed in before, you likley wont need to login again
     let status = Command::new("sudo")
         .args(&["ln", "-sf", "/opt/Discord/Discord", "/usr/local/bin/discord"])
         .status()
@@ -98,3 +152,8 @@ fn perform_update() {
     post_install();
     println!("Update complete!");
 }
+
+
+// unit tests src/tests.rs
+#[cfg(test)] 
+mod tests;
