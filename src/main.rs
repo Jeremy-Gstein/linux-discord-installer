@@ -32,7 +32,7 @@ impl fmt::Display for UpdateError {
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Perform an update
-    #[arg(long)]
+#[arg(long)]
     update: bool,
 }
 
@@ -70,10 +70,10 @@ fn check_file(path: &Path) -> Result<(), UpdateError> {
     }
 }
 
-
+// TODO: add check for existing install.
 fn check_files_first() -> Result<(), UpdateError> {
-    let check_opt: &Path = Path::new("/opt"); 
-    let check_usr: &Path = Path::new("/usr/local"); 
+    let check_opt: &Path = Path::new("/opt");
+    let check_usr: &Path = Path::new("/usr/bin");
     check_file(check_opt)?;
     check_file(check_usr)?;
 
@@ -82,22 +82,30 @@ fn check_files_first() -> Result<(), UpdateError> {
 
 fn install_discord() {
     // Remove existing /opt/Discord (with sudo)
-    // NOTE: this assumes the os already has a /opt dir 
-
+    // NOTE: this assumes the os already has a /opt dir
     let status = Command::new("sudo")
-        .args(&["rm", "-rf", "/opt/Discord"])
+        .args(&["rm", "-rf", "/opt/discord"])
         .status()
         .expect("Failed to remove old Discord");
     assert!(status.success());
 
     // Move the new folder into /opt/
-    // NOTE: this assumes the os already has a /opt dir 
+    // NOTE: this assumes the os already has a /opt dir
     // TODO: use a less intrusive directory that does not need sudo.
     let status = Command::new("sudo")
-        .args(&["mv", "-f", "/tmp/Discord", "/opt/"])
+        .args(&["mv", "-f", "/tmp/Discord", "/opt/discord"])
         .status()
         .expect("Failed to move Discord to /opt/");
     assert!(status.success());
+
+
+    // Change Owner of /opt/discord to root
+    let status = Command::new("sudo")
+        .args(&["chown", "-R", "root:root", "/opt/discord"])
+        .status()
+        .expect("Failed to Change Owner of /opt/discord");
+    assert!(status.success());
+
 }
 
 fn post_install() {
@@ -106,7 +114,7 @@ fn post_install() {
     // Explaination:
     //    if you signed in before, you likley wont need to login again
     let status = Command::new("sudo")
-        .args(&["ln", "-sf", "/opt/Discord/Discord", "/usr/local/bin/discord"])
+        .args(&["ln", "-sf", "/opt/discord/Discord", "/usr/bin/discord"])
         .status()
         .expect("Failed to create symlink");
     assert!(status.success());
@@ -155,5 +163,5 @@ fn perform_update() {
 
 
 // unit tests src/tests.rs
-#[cfg(test)] 
+#[cfg(test)]
 mod tests;
