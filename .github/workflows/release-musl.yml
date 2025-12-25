@@ -67,6 +67,31 @@ jobs:
             dist/discord-installer-linux-x86_64-musl.sha256
             dist/discord-installer-linux-x86_64-musl.sha256.asc
           overwrite: true
+
+          body: |
+            ## Verifying Downloads
+            1. Import public key:
+            ```
+            curl -LO https://raw.githubusercontent.com/Jeremy-Gstein/linux-discord-installer/refs/heads/main/.keys/jeremy51b5-discord-installer.gpg
+            gpg --import jeremy51b5-discord-installer.gpg
+            ```
+            2. Download binary + checksum + sig for this tag:
+            ```
+            TAG=${{ github.ref_name }}
+            BASE="https://github.com/Jeremy-Gstein/linux-discord-installer/releases/download/$TAG"
+
+            curl -LO "$BASE/linux-discord-installer-x86_64-musl"
+            curl -LO "$BASE/linux-discord-installer-x86_64-musl.sha256"
+            curl -LO "$BASE/linux-discord-installer-x86_64-musl.sha256.asc"
+            ```
+            3. Verify the signed checksum:
+            ```
+            gpg --verify linux-discord-installer-x86_64-musl.sha256.asc linux-discord-installer-x86_64-musl.sha256
+            ```
+            4. Verify the checksum matches the binary:
+            ```
+            sha256sum -c linux-discord-installer-x86_64-musl.sha256
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
