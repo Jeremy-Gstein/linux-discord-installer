@@ -38,11 +38,34 @@ jobs:
           mkdir -p dist
           cp target/x86_64-unknown-linux-musl/release/discord-installer dist/discord-installer-linux-x86_64-musl
 
+      - name: Generate SHA256 checksum
+        run: |
+          cd dist
+          sha256sum discord-installer-linux-x86_64-musl > discord-installer-linux-x86_64-musl.sha256
+
+      - name: Import GPG key
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Sign checksum file
+        run: |
+          cd dist
+          gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+              --armor --detach-sign \
+              discord-installer-linux-x86_64-musl.sha256
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
       - name: Publish GitHub Release asset
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/discord-installer-linux-x86_64-musl
+            dist/discord-installer-linux-x86_64-musl.sha256
+            dist/discord-installer-linux-x86_64-musl.sha256.asc
+          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
