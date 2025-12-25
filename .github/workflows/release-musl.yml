@@ -1,0 +1,45 @@
+name: release-musl
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-release-musl:
+    name: Build musl binary and attach to release
+    runs-on: ubuntu-latest
+
+    # Use a container that already has musl, musl-gcc, etc.
+    container:
+      image: clux/muslrust:stable  # x86_64-unknown-linux-musl toolchain inside
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Rust/cargo versions
+        run: |
+          rustc -V
+          cargo -V
+
+      - name: Build static musl binary
+        run: |
+          # Ensure target exists (muslrust usually has it, but this is cheap)
+          rustup target add x86_64-unknown-linux-musl || true
+
+          # Build your installer for musl
+          cargo build --release --target x86_64-unknown-linux-musl
+
+          # Collect artifact
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-musl/release/discord-installer dist/discord-installer-linux-x86_64-musl
+
+      - name: Publish GitHub Release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/discord-installer-linux-x86_64-musl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
