@@ -13,9 +13,8 @@ jobs:
     name: Build musl binary and attach to release
     runs-on: ubuntu-latest
 
-    # Use a container that already has musl, musl-gcc, etc.
     container:
-      image: clux/muslrust:stable  # x86_64-unknown-linux-musl toolchain inside
+      image: clux/muslrust:stable  # musl toolchain inside
 
     steps:
       - name: Checkout
@@ -26,15 +25,15 @@ jobs:
           rustc -V
           cargo -V
 
+      - name: Install gpg
+        run: |
+          apk update
+          apk add gnupg
+
       - name: Build static musl binary
         run: |
-          # Ensure target exists (muslrust usually has it, but this is cheap)
           rustup target add x86_64-unknown-linux-musl || true
-
-          # Build your installer for musl
           cargo build --release --target x86_64-unknown-linux-musl
-
-          # Collect artifact
           mkdir -p dist
           cp target/x86_64-unknown-linux-musl/release/discord-installer dist/discord-installer-linux-x86_64-musl
 
