@@ -51,7 +51,9 @@ jobs:
       - name: Sign checksum file
         run: |
           cd dist
-          gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+          gpg --batch --yes \
+              --pinentry-mode loopback \
+              --passphrase "$GPG_PASSPHRASE" \
               --armor --detach-sign \
               discord-installer-linux-x86_64-musl.sha256
         env:
