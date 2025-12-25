@@ -1,9 +1,13 @@
-use clap::Parser;
-use std::process::Command;
 use chrono::Local;
 use std::fs;
 use std::path::Path;
 use std::fmt;
+use anyhow::Result;
+
+mod install;
+mod download;
+mod cli;
+mod remove;
 
 // Error Handler
 #[derive(Debug)]
@@ -27,45 +31,33 @@ impl fmt::Display for UpdateError {
     }
 }
 
-// A simple updater/installer with an update or install flag
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Perform an update
-#[arg(long)]
-    update: bool,
-}
+impl std::error::Error for UpdateError {}
 
-// Discord tar.gz link for discorc client Linux install
-const DISCORD_TARBALL: &str = &"https://discord.com/api/download?platform=linux&format=tar.gz";
+fn main() -> Result<()> {
+    let args = cli::run()?;
 
-
-fn main() {
-    // first we handle CLI arguments
-    let args = Args::parse();
-    if !args.update {
-        eprintln!("No update flag provided. Run with --update to perform update.");
-        return;
+    if args.remove {
+        let link_path: Option<&Path> = args.link_path.as_ref().map(|p| p.as_path());
+        remove::uninstall_discord(link_path)
+            .map_err(|e| anyhow::anyhow!("Uninstall failed: {}", e))?;
+        return Ok(());
     }
 
-    match check_files_first() {
-        Ok(()) => {
-            println!("Performing update...");
-            perform_update();
-        }
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
-        }
-    }
 
+    check_files_first()
+        .map_err(|e| anyhow::anyhow!("OS Check failed: {}", e))?;
+    
+    perform_update(&args)
+        .map_err(|e| anyhow::anyhow!("Update failed: {}", e))?;
+    
+    Ok(())
 }
 
 fn check_file(path: &Path) -> Result<(), UpdateError> {
     if fs::metadata(path).is_err() {
         Err(UpdateError::new(format!("Missing file or dir: {}", path.display())))
     } else {
-        println!("OK: {}", path.display());
+        //println!("OK: {}", path.display());
         Ok(())
     }
 }
@@ -74,94 +66,23 @@ fn check_file(path: &Path) -> Result<(), UpdateError> {
 fn check_files_first() -> Result<(), UpdateError> {
     let check_opt: &Path = Path::new("/opt");
     let check_usr: &Path = Path::new("/usr/bin");
+    let check_usr_bin: &Path = Path::new("/usr/local/bin");
     check_file(check_opt)?;
     check_file(check_usr)?;
-
+    check_file(check_usr_bin)?;
     Ok(())
 }
 
-fn install_discord() {
-    // Remove existing /opt/Discord (with sudo)
-    // NOTE: this assumes the os already has a /opt dir
-    let status = Command::new("sudo")
-        .args(&["rm", "-rf", "/opt/discord"])
-        .status()
-        .expect("Failed to remove old Discord");
-    assert!(status.success());
 
-    // Move the new folder into /opt/
-    // NOTE: this assumes the os already has a /opt dir
-    // TODO: use a less intrusive directory that does not need sudo.
-    let status = Command::new("sudo")
-        .args(&["mv", "-f", "/tmp/Discord", "/opt/discord"])
-        .status()
-        .expect("Failed to move Discord to /opt/");
-    assert!(status.success());
-
-
-    // Change Owner of /opt/discord to root
-    let status = Command::new("sudo")
-        .args(&["chown", "-R", "root:root", "/opt/discord"])
-        .status()
-        .expect("Failed to Change Owner of /opt/discord");
-    assert!(status.success());
-
-}
-
-fn post_install() {
-    // Create/overwrite symlink
-    // this lets us 'source' local config to new discord binary
-    // Explaination:
-    //    if you signed in before, you likley wont need to login again
-    let status = Command::new("sudo")
-        .args(&["ln", "-sf", "/opt/discord/Discord", "/usr/bin/discord"])
-        .status()
-        .expect("Failed to create symlink");
-    assert!(status.success());
-}
-
-
-fn download_tarfile() {
-    // timestamp
-    let now = Local::now();
-    let timestamp = now.format("%Y-%m-%d-%H:%M:%S").to_string();
-
-    let url = &DISCORD_TARBALL;
-    let tmp_path: &str = &"/tmp/";
-    let output_file = format!("{}{}-discord.tar.gz", tmp_path, timestamp);
-
-    let status = Command::new("curl")
-        .args(&["-L", "-o", &output_file, url])
-        .status()
-        .expect("failed to execute curl");
-
-    if status.success() {
-        println!("Downloaded {}", &output_file);
-        extract_tarfile(&output_file);
-    } else {
-        eprintln!("curl failed with status: {}", status);
-    }
-
-}
-
-fn extract_tarfile(tarfile: &str) {
-    // Extract tar.gz to /tmp
-    let status = Command::new("tar")
-        .args(&["xzvf", &tarfile , "-C", "/tmp"])
-        .status()
-        .expect("Failed to run tar. Unable to Extract Archive...");
-    assert!(status.success());
-}
-
-fn perform_update() {
+fn perform_update(args: &cli::Args) -> Result<(), UpdateError>{
     println!("Performing update...");
-    download_tarfile();
-    install_discord();
-    post_install();
+    download::download_tarfile(args)?;
+    install::install_discord()?;
+    let link: Option<&Path> = args.link_path.as_ref().map(|p| p.as_path());
+    install::post_install(link)?; 
     println!("Update complete!");
+    Ok(())
 }
-
-
 // unit tests src/tests.rs
 #[cfg(test)]
 mod tests;
