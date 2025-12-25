@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: clux/muslrust:stable  # musl toolchain inside
+      image: clux/muslrust:stable  # musl toolchain inside (Debian-based)
 
     steps:
       - name: Checkout
@@ -25,10 +25,10 @@ jobs:
           rustc -V
           cargo -V
 
-      - name: Install gpg
+      - name: Install GPG
         run: |
-          apk update
-          apk add gnupg
+          apt-get update
+          apt-get install -y gnupg
 
       - name: Build static musl binary
         run: |
