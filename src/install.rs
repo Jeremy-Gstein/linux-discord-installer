@@ -37,7 +37,7 @@ pub fn install_discord() -> Result<(), UpdateError> {
 
 /// post_install takes a specified target path to install (symlink) the discord binary
 pub fn post_install(target: Option<&Path>) -> Result<(), UpdateError> {
-    let source = Path::new("/opt/discord/Discord");
+    let source = Path::new("/opt/discord/discord");
     let target = match target {
         Some(p) => p.to_path_buf(),
         None => default_link_location(),
